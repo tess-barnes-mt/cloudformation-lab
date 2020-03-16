@@ -1,0 +1,48 @@
+---
+Parameters:
+  SgDescription:
+    Description: Security Group Description
+    Type: String
+
+Resources:
+  MtTessFirstInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: eu-west-2a
+      ImageId: ami-0389b2a3c4948b1a0
+      InstanceType: t2.micro
+      SecurityGroups:
+        - !Ref MtTessSSHSg
+        - !Ref MtTessServerSg23432
+
+  # an elastic IP for our instance
+  MtTessEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref MtTessFirstInstance
+
+  # our EC2 security group
+  MtTessSSHSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+
+  # our second EC2 security group
+  MtTessServerSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Ref SgDescription
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 192.168.1.1/32

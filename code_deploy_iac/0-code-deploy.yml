@@ -1,0 +1,94 @@
+---
+Parameters:
+  KeyPairName:
+    Description: Name of existing keypair to be used with ec2
+    Type: String
+    # TessEc2Key
+
+  Ec2Role:
+    Description: Name of the role for attaching to ec2 instance
+    Type: String
+    # ec2-s3-readonly
+
+  Creator:
+    Description: Name of the creator to be used in tags
+    Type: String
+
+  # SecurityGroupIds:
+  #   Description: list of ids for existing security groups
+  #   Type: CommaDelimitedList
+
+Mappings:
+  RegionalAMIRefs:
+    eu-west-2:
+      '64': "ami-0389b2a3c4948b1a0"
+  SecurityGroupLookup:
+    ssh:
+      "tessSgEc2ssh": "sg-0149a42154f3686a2"
+    web:
+      "TessWebDMZ": "sg-0dcf2a084936c9828"
+
+Resources:
+  S3ReadInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref Ec2Role
+
+  MtTessCDInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: 
+        Fn::FindInMap:
+        - RegionalAMIRefs
+        - !Ref 'AWS::Region'
+        - '64'
+      InstanceType: t2.micro
+      KeyName: !Ref KeyPairName
+      IamInstanceProfile: !Ref S3ReadInstanceProfile
+      SecurityGroupIds: 
+        - Fn::FindInMap:
+          - SecurityGroupLookup
+          - ssh
+          - tessSgEc2ssh
+        - Fn::FindInMap:
+          - SecurityGroupLookup
+          - web
+          - TessWebDMZ
+      Tags:
+        - Key: created-by
+          Value: !Ref Creator
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -ex
+          trap '/opt/aws/bin/cfn-signal --exit-code 1 --resource MtTessCDInstance --region ${AWS::Region} --stack ${AWS::StackName}' ERR
+          # run some commands
+          yum -y update
+          yum -y install ruby
+
+          wget https://aws-codedeploy-eu-west-2.s3.eu-west-2.amazonaws.com/latest/install
+          chmod +x ./install
+          ./install auto
+          service codedeploy-agent status
+          /opt/aws/bin/cfn-signal --exit-code 0 --resource MtTessCDInstance --region ${AWS::Region} --stack ${AWS::StackName}
+
+
+  DeploymentBucket:
+    Type: AWS::S3::Bucket
+    Properties: 
+      AccessControl: Private
+      BucketName: mt-tess-code-deploy-test
+      PublicAccessBlockConfiguration: 
+        BlockPublicAcls: true
+        BlockPublicPolicy: false
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: false
+      Tags:
+        - Key: created-by
+          Value: !Ref Creator
+
+Outputs:
+  Ip:
+    Description: The public ip of the code deploy ec2 instance
+    Value: 
+      !GetAtt MtTessCDInstance.PublicIp

@@ -1,0 +1,8 @@
+---
+Resources:
+  MtTessFirstInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: eu-west-2a
+      ImageId: ami-0389b2a3c4948b1a0
+      InstanceType: t2.micro
